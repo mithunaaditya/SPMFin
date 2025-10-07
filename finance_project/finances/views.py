@@ -37,6 +37,9 @@ class CategoryViewSet(IsOwnerMixin, viewsets.ModelViewSet):
     filter_backends = [OrderingFilter, SearchFilter]
     search_fields = ['name']
 
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
 class TransactionViewSet(IsOwnerMixin, viewsets.ModelViewSet):
     queryset = Transaction.objects.select_related('account','category').all()
     serializer_class = TransactionSerializer

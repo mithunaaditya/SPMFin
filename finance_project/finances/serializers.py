@@ -21,6 +21,7 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['category_id','user','name','type','parent_category','created_at','updated_at']
+        read_only_fields = ['user', 'created_at', 'updated_at']
 
 class TransactionSerializer(serializers.ModelSerializer):
     """
