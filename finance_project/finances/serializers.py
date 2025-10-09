@@ -43,11 +43,11 @@ class TransactionSerializer(serializers.ModelSerializer):
             'receipt_image_url','location','transfer_uuid','transfer',
             'created_at','updated_at'
         ]
-        read_only_fields = ['transfer_uuid','created_at','updated_at']
+        read_only_fields = ['user','transfer_uuid','created_at','updated_at']
 
     def validate(self, attrs):
         # ensure category belongs to user
-        user = attrs.get('user') or self.instance.user
+        user = self.context['request'].user
         category = attrs.get('category')
         account = attrs.get('account')
         if category and category.user_id != user.id:

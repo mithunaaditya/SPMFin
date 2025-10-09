@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
+from django_filters.rest_framework import DjangoFilterBackend
 
 class IsOwnerMixin:
     """
@@ -46,6 +47,22 @@ class TransactionViewSet(IsOwnerMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, OrderingFilter, SearchFilter]
     filterset_fields = ['account','category','txn_date']
     search_fields = ['description','location']
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Transaction.objects.filter(user=user)
+
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(txn_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(txn_date__lte=end_date)
+
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 class BudgetViewSet(IsOwnerMixin, viewsets.ModelViewSet):
     queryset = Budget.objects.all()
