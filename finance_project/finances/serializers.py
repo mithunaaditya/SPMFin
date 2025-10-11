@@ -114,6 +114,8 @@ class TransactionSerializer(serializers.ModelSerializer):
 
         # not a transfer: normal transaction
         return super().create(validated_data)
+    
+    
 
 class BudgetSerializer(serializers.ModelSerializer):
     class Meta:

@@ -1,7 +1,7 @@
 from django.shortcuts import render
 
 # Create your views here.
-from rest_framework import viewsets, permissions, generics
+from rest_framework import viewsets, permissions, generics, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Account, Category, Transaction, Budget
 from .serializers import AccountSerializer, CategorySerializer, TransactionSerializer, BudgetSerializer, RegisterSerializer
@@ -63,6 +63,64 @@ class TransactionViewSet(IsOwnerMixin, viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # if this transaction is part of a transfer, delete both
+        if instance.transfer_uuid:
+            Transaction.objects.filter(user=request.user, transfer_uuid=instance.transfer_uuid).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        # else normal delete
+        return super().destroy(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        
+        instance = self.get_object()
+        data = request.data
+        transfer_uuid = instance.transfer_uuid
+
+        if transfer_uuid:
+            if 'account' in data:
+                return Response(
+                    {"error": "Cannot change account for a transfer. Delete and create a new transfer instead."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Normal transaction
+        if not transfer_uuid:
+            serializer = self.get_serializer(instance, data=data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+        
+
+        # Transfer: get both transactions
+        transactions = Transaction.objects.filter(user=request.user, transfer_uuid=transfer_uuid)
+        if transactions.count() != 2:
+            return Response({"error": "Invalid transfer state"}, status=400)
+
+        # Identify outgoing (expense) and incoming (income)
+        outgoing = transactions.get(category__type='expense')
+        incoming = transactions.get(category__type='income')
+
+        # Update outgoing transaction
+        outgoing_serializer = self.get_serializer(outgoing, data=data, partial=True)
+        outgoing_serializer.is_valid(raise_exception=True)
+        outgoing_serializer.save()
+
+        # Mirror changes to incoming transaction
+        incoming_data = {
+            'amount': outgoing.amount,
+            'description': f"Transfer from {outgoing.account.name}: {outgoing.description}",
+            'txn_date': outgoing.txn_date
+        }
+        incoming_serializer = self.get_serializer(incoming, data=incoming_data, partial=True)
+        incoming_serializer.is_valid(raise_exception=True)
+        incoming_serializer.save()
+
+        return Response(outgoing_serializer.data)
+
+    
 
 class BudgetViewSet(IsOwnerMixin, viewsets.ModelViewSet):
     queryset = Budget.objects.all()
