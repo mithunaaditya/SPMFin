@@ -52,12 +52,16 @@ class TransactionViewSet(IsOwnerMixin, viewsets.ModelViewSet):
         user = self.request.user
         queryset = Transaction.objects.filter(user=user)
 
-        start_date = self.request.query_params.get('start_date')
-        end_date = self.request.query_params.get('end_date')
-        if start_date:
-            queryset = queryset.filter(txn_date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(txn_date__lte=end_date)
+        month = self.request.query_params.get('month')
+        year = self.request.query_params.get('year')
+        day = self.request.query_params.get('day')
+
+        if year:
+            queryset = queryset.filter(txn_date__year=year)
+        if month:
+            queryset = queryset.filter(txn_date__month=month)
+        if day:
+            queryset = queryset.filter(txn_date__day=day)
 
         return queryset
     
@@ -120,13 +124,25 @@ class TransactionViewSet(IsOwnerMixin, viewsets.ModelViewSet):
 
         return Response(outgoing_serializer.data)
 
-    
 
-class BudgetViewSet(IsOwnerMixin, viewsets.ModelViewSet):
-    queryset = Budget.objects.all()
+class BudgetViewSet(viewsets.ModelViewSet):
     serializer_class = BudgetSerializer
-    filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ['category','account','period_start','period_end']
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Budget.objects.filter(user=user)
+
+        # Optional filter by category ID
+        category_id = self.request.query_params.get('category')
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
 
 # Register new user
 class RegisterView(generics.CreateAPIView):

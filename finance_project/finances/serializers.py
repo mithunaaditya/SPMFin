@@ -120,7 +120,17 @@ class TransactionSerializer(serializers.ModelSerializer):
 class BudgetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Budget
-        fields = ['budget_id','user','category','account','period_start','period_end','amount','created_at','updated_at']
+        fields = ['budget_id', 'user', 'category', 'amount', 'created_at', 'updated_at']
+        read_only_fields = ['user', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        category = attrs.get('category')
+
+        # ensure category belongs to the same user
+        if category and category.user_id != user.id:
+            raise serializers.ValidationError("Category must belong to the logged-in user.")
+        return attrs
 
 
 

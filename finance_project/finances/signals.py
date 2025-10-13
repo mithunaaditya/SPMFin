@@ -2,7 +2,25 @@ from django.db.models.signals import post_save, pre_save, pre_delete
 from django.dispatch import receiver
 from decimal import Decimal
 from django.db import transaction as db_transaction
-from .models import Transaction, Account
+from .models import Transaction, Account, Category
+from django.contrib.auth.models import User
+
+
+@receiver(post_save, sender=User)
+def create_default_transfer_categories(sender, instance, created, **kwargs):
+    if created:
+        # Create "Transfer In" category
+        Category.objects.create(
+            user=instance,
+            name="Transfer In",
+            type="income"
+        )
+        # Create "Transfer Out" category
+        Category.objects.create(
+            user=instance,
+            name="Transfer Out",
+            type="expense"
+        )
 
 def sign(tx):
     """Return +1 for income, -1 for expense"""
@@ -103,8 +121,16 @@ def revert_balance_on_delete(sender, instance: Transaction, **kwargs):
     """Reverse the transaction effect on delete"""
     with db_transaction.atomic():
         if instance.transfer_uuid:
-            # Delete both transactions in a transfer
+            # Only process the transfer once, e.g., only for the outgoing transaction
             transfer_txns = Transaction.objects.filter(transfer_uuid=instance.transfer_uuid, user=instance.user)
+            
+            # Pick the outgoing (expense) transaction as the primary one
+            outgoing = transfer_txns.filter(category__type='expense').first()
+            if instance.pk != outgoing.pk:
+                # Skip balance adjustment for incoming transaction
+                return
+            
+            # Adjust both accounts
             for tx in transfer_txns:
                 delta = sign(tx) * tx.amount
                 acc = Account.objects.select_for_update().get(pk=tx.account_id)

@@ -19,4 +19,8 @@ class TransactionAdmin(admin.ModelAdmin):
 
 @admin.register(Budget)
 class BudgetAdmin(admin.ModelAdmin):
-    list_display = ('budget_id','user','category','account','amount','period_start','period_end')
+    list_display = ('budget_id', 'user', 'category', 'amount', 'created_at', 'updated_at')
+    list_filter = ('category', 'user')
+    search_fields = ('category__name', 'user__username')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-created_at',)
