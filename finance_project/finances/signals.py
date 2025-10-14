@@ -2,7 +2,7 @@ from django.db.models.signals import post_save, pre_save, pre_delete
 from django.dispatch import receiver
 from decimal import Decimal
 from django.db import transaction as db_transaction
-from .models import Transaction, Account, Category
+from .models import Transaction, Account, Category, Budget
 from django.contrib.auth.models import User
 
 
@@ -20,6 +20,21 @@ def create_default_transfer_categories(sender, instance, created, **kwargs):
             user=instance,
             name="Transfer Out",
             type="expense"
+        )
+
+
+@receiver(post_save, sender=Category)
+def create_default_budget(sender, instance, created, **kwargs):
+    if created:
+        # Skip "Transfer In" and "Transfer Out" categories
+        if instance.name in ["Transfer In", "Transfer Out"]:
+            return
+
+        # Create a budget with amount = 0 for this category
+        Budget.objects.create(
+            user=instance.user,  # assuming Category has a 'user' FK
+            category=instance,
+            amount=0
         )
 
 def sign(tx):

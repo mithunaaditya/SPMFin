@@ -7,6 +7,7 @@ router.register(r'accounts', views.AccountViewSet, basename='account')
 router.register(r'categories', views.CategoryViewSet, basename='category')
 router.register(r'transactions', views.TransactionViewSet, basename='transaction')
 router.register(r'budgets', views.BudgetViewSet, basename='budget')
+router.register(r'reports', views.ReportViewSet, basename='report')
 
 
 

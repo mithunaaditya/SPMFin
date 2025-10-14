@@ -4,15 +4,16 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, generics, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Account, Category, Transaction, Budget
-from .serializers import AccountSerializer, CategorySerializer, TransactionSerializer, BudgetSerializer, RegisterSerializer
+from .serializers import AccountSerializer, CategorySerializer, TransactionSerializer, BudgetSerializer, RegisterSerializer, ReportSerializer
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Sum, Q
 
 class IsOwnerMixin:
     """
@@ -190,3 +191,43 @@ def login_view(request):
         })
     else:
         return Response({"error": "Invalid credentials"}, status=400)
+
+class ReportViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        user = request.user
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+        day = request.query_params.get('day')
+
+        filters = Q(user=user)
+        if year:
+            filters &= Q(txn_date__year=year)
+        if month:
+            filters &= Q(txn_date__month=month)
+        if day:
+            filters &= Q(txn_date__day=day)
+
+        exclude_transfers = ~Q(category__name__in=['Transfer In', 'Transfer Out'])
+
+        totals = (
+            Transaction.objects.filter(filters & exclude_transfers)
+            .values('category__category_id', 'category__name', 'category__type')
+            .annotate(total_amount=Sum('amount'))
+            .order_by('category__name')
+        )
+
+        results = [
+            {
+                'category_id': t['category__category_id'],
+                'name': t['category__name'],
+                'type': t['category__type'],
+                'total_amount': t['total_amount'],
+            }
+            for t in totals
+        ]
+
+        from .serializers import ReportSerializer
+        serializer = ReportSerializer(results, many=True)
+        return Response(serializer.data)

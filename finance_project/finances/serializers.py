@@ -155,3 +155,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
         return user
+
+class ReportSerializer(serializers.ModelSerializer):
+    total_amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+
+    class Meta:
+        model = Category
+        fields = ['category_id', 'name', 'type', 'total_amount']
