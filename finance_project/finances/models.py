@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from decimal import Decimal
+from django.core.validators import MinValueValidator
 
 User = get_user_model()
 
@@ -110,24 +111,28 @@ class Transaction(TimestampedModel):
     def __str__(self):
         return f"Txn {self.txn_id} - {self.user} - {self.amount} on {self.txn_date}"
 
+
 class Budget(models.Model):
     budget_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='budgets')
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='budgets', null=True, blank=True)
-    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='account_budgets', null=True, blank=True)
-    period_start = models.DateField()
-    period_end = models.DateField()
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='budgets'
+    )
+    category = models.ForeignKey(
+        'Category',
+        on_delete=models.CASCADE,
+        related_name='budgets'
+    )
     amount = models.DecimalField(max_digits=15, decimal_places=2)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-period_start']
-        constraints = [
-            models.CheckConstraint(check=models.Q(period_end__gte=models.F('period_start')), name='budget_period_valid')
-        ]
+        # Prevent duplicate budgets for same user-category pair
+        unique_together = ('user', 'category')
+        ordering = ['-created_at']
 
     def __str__(self):
-        target = self.category.name if self.category else (self.account.name if self.account else "Total")
-        return f"Budget {self.amount} for {target} ({self.period_start} -> {self.period_end})"
+        return f"Budget ₹{self.amount} for {self.category.name}"

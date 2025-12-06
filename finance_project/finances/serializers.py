@@ -21,6 +21,7 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['category_id','user','name','type','parent_category','created_at','updated_at']
+        read_only_fields = ['user', 'created_at', 'updated_at']
 
 class TransactionSerializer(serializers.ModelSerializer):
     """
@@ -42,11 +43,11 @@ class TransactionSerializer(serializers.ModelSerializer):
             'receipt_image_url','location','transfer_uuid','transfer',
             'created_at','updated_at'
         ]
-        read_only_fields = ['transfer_uuid','created_at','updated_at']
+        read_only_fields = ['user','transfer_uuid','created_at','updated_at']
 
     def validate(self, attrs):
         # ensure category belongs to user
-        user = attrs.get('user') or self.instance.user
+        user = self.context['request'].user
         category = attrs.get('category')
         account = attrs.get('account')
         if category and category.user_id != user.id:
@@ -113,11 +114,23 @@ class TransactionSerializer(serializers.ModelSerializer):
 
         # not a transfer: normal transaction
         return super().create(validated_data)
+    
+    
 
 class BudgetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Budget
-        fields = ['budget_id','user','category','account','period_start','period_end','amount','created_at','updated_at']
+        fields = ['budget_id', 'user', 'category', 'amount', 'created_at', 'updated_at']
+        read_only_fields = ['user', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        category = attrs.get('category')
+
+        # ensure category belongs to the same user
+        if category and category.user_id != user.id:
+            raise serializers.ValidationError("Category must belong to the logged-in user.")
+        return attrs
 
 
 
@@ -142,3 +155,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
         return user
+
+class ReportSerializer(serializers.ModelSerializer):
+    total_amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+
+    class Meta:
+        model = Category
+        fields = ['category_id', 'name', 'type', 'total_amount']
